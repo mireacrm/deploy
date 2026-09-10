@@ -1,5 +1,7 @@
 """Отчёт об архитектуре Mirea CRM."""
 
+import pathlib
+
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.styles import ParagraphStyle
@@ -1039,6 +1041,8 @@ add(Paragraph(
 
 # ---------------------------------------------------------------- сборка
 
-doc = Report("architecture.pdf")
+# Отчёт кладётся рядом с остальной документацией, а не в текущий
+# каталог: собирать его удобно откуда угодно, а место у него одно.
+doc = Report(str(pathlib.Path(__file__).resolve().parent.parent / "architecture.pdf"))
 doc.multiBuild(story)
 print("готово")

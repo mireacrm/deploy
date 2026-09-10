@@ -13,6 +13,16 @@
 | Публичный интерфейс | [`docs/openapi.yaml`](docs/openapi.yaml) |
 | Настройки Keycloak, Prometheus, Grafana, RabbitMQ, Postgres | [`deploy/`](deploy/) |
 
+### Пересборка отчёта
+
+```
+python3 docs/report/report.py
+```
+
+Собирается из любого каталога, результат всегда ложится в `docs/architecture.pdf`.
+Нужны `reportlab` и шрифты Liberation — путь к ним задан в `docs/report/build.py`
+и на других дистрибутивах может отличаться.
+
 ## Репозитории
 
 **Контракты** — [`proto`](https://github.com/mireacrm/proto) — источник правды.
