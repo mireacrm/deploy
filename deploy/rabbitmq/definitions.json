@@ -1,0 +1,179 @@
+{
+  "rabbit_version": "3.13.0",
+  "users": [
+    {
+      "name": "guest",
+      "password_hash": "fwanrdtKrIVsV+zusKudKAr1sRbeWhnHGQ4lGWrF7BcKiRdj",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [
+        "administrator"
+      ]
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "mirea.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "mirea.events.dlx",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "inventory-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "mirea.events.dlx",
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "billing-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "mirea.events.dlx",
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "notification-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "mirea.events.dlx",
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "analytics-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "mirea.events.dlx",
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "client-service.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "mirea.events.dlx",
+        "x-queue-type": "quorum",
+        "x-delivery-limit": 10
+      }
+    },
+    {
+      "name": "mirea.events.dead",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "inventory-service.events",
+      "destination_type": "queue",
+      "routing_key": "appointment.completed",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "billing-service.events",
+      "destination_type": "queue",
+      "routing_key": "appointment.completed",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "appointment.created",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "appointment.cancelled",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "stock.low",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "notification-service.events",
+      "destination_type": "queue",
+      "routing_key": "invoice.issued",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events",
+      "vhost": "/",
+      "destination": "analytics-service.events",
+      "destination_type": "queue",
+      "routing_key": "#",
+      "arguments": {}
+    },
+    {
+      "source": "mirea.events.dlx",
+      "vhost": "/",
+      "destination": "mirea.events.dead",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    }
+  ]
+}

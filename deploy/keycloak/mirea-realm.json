@@ -1,0 +1,125 @@
+{
+  "realm": "mirea",
+  "enabled": true,
+  "displayName": "Mirea CRM",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Владелец сети: полный доступ, включая оплату счетов"
+      },
+      {
+        "name": "manager",
+        "description": "Администратор филиала: клиенты, записи, склад, отчёты"
+      },
+      {
+        "name": "specialist",
+        "description": "Специалист: своё расписание, свои визиты, своя комиссия"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mirea-web",
+      "name": "Mirea CRM Web",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:8000/*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "mirea-api",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "owner",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Ольга",
+      "lastName": "Владелец",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "owner",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ],
+      "email": "owner@mirea.local",
+      "requiredActions": []
+    },
+    {
+      "username": "admin-tverskaya",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Ирина",
+      "lastName": "Администратор",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "manager",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "manager"
+      ],
+      "email": "admin.tverskaya@mirea.local",
+      "requiredActions": []
+    },
+    {
+      "username": "specialist-anna",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Анна",
+      "lastName": "Специалист",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "specialist",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "specialist"
+      ],
+      "email": "anna@mirea.local",
+      "requiredActions": []
+    }
+  ]
+}

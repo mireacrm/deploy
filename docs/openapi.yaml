@@ -1,0 +1,3109 @@
+openapi: 3.1.0
+info:
+  title: Mirea CRM
+  version: 1.0.0
+  description: 'Публичный интерфейс системы. Единственный вход — шлюз: сервисы за ним публичных портов
+    не имеют.
+
+
+    Проверка доступа двухуровневая. Роль проверяет шлюз — она указана в описании каждого запроса. Принадлежность
+    объекта проверяет сервис-владелец: специалист работает только со своими записями, администратор и
+    управляющий — с любыми.
+
+
+    Документ собирается из маршрутной таблицы шлюза и описаний самих сервисов, руками не правится: docs/build-openapi.py.'
+servers:
+- url: http://localhost:8000
+  description: Локальный запуск
+tags:
+- name: Доступ
+  description: Токены и права
+- name: Организация
+- name: Услуги
+- name: Записи
+- name: Склад
+- name: Клиенты
+- name: Расчёты
+- name: Уведомления
+- name: Аналитика
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Токен Keycloak области mirea.
+  schemas:
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        branch_id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - scheduled
+          - completed
+          - cancelled
+        price_kopecks:
+          type: integer
+          format: int64
+    AppointmentOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        service_id:
+          type: string
+          format: uuid
+          title: Service Id
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+        status:
+          type: string
+          title: Status
+        price_kopecks:
+          type: integer
+          title: Price Kopecks
+      type: object
+      required:
+      - id
+      - branch_id
+      - service_id
+      - starts_at
+      - ends_at
+      - status
+      - price_kopecks
+      title: AppointmentOut
+    BookRequest:
+      type: object
+      required:
+      - branch_id
+      - client_id
+      - employee_id
+      - service_id
+      - starts_at
+      properties:
+        branch_id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        starts_at:
+          type: string
+          format: date-time
+    BranchCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        address:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Address
+        timezone:
+          type: string
+          title: Timezone
+          default: Europe/Moscow
+      type: object
+      required:
+      - name
+      - address
+      title: BranchCreate
+    BranchOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        company_id:
+          type: string
+          format: uuid
+          title: Company Id
+        name:
+          type: string
+          title: Name
+        address:
+          type: string
+          title: Address
+        timezone:
+          type: string
+          title: Timezone
+      type: object
+      required:
+      - id
+      - company_id
+      - name
+      - address
+      - timezone
+      title: BranchOut
+    CancelRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Необязательна
+    ClientCardOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        full_name:
+          type: string
+          title: Full Name
+        phone:
+          type: string
+          title: Phone
+        email:
+          type: string
+          title: Email
+        telegram:
+          type: string
+          title: Telegram
+        preferred:
+          $ref: '#/components/schemas/PreferredChannel'
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        points_balance:
+          type: integer
+          title: Points Balance
+        appointments:
+          items:
+            $ref: '#/components/schemas/AppointmentOut'
+          type: array
+          title: Appointments
+          default: []
+      type: object
+      required:
+      - id
+      - full_name
+      - phone
+      - email
+      - telegram
+      - preferred
+      - branch_id
+      - points_balance
+      title: ClientCardOut
+      description: 'Карточка клиента: своё состояние плюс история записей из booking.'
+    ClientCreate:
+      properties:
+        full_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Full Name
+        phone:
+          type: string
+          pattern: ^\+?\d{10,15}$
+          title: Phone
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        email:
+          type: string
+          maxLength: 200
+          title: Email
+          default: ''
+        telegram:
+          type: string
+          maxLength: 64
+          title: Telegram
+          default: ''
+        preferred:
+          $ref: '#/components/schemas/PreferredChannel'
+          default: sms
+      type: object
+      required:
+      - full_name
+      - phone
+      - branch_id
+      title: ClientCreate
+    ClientOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        full_name:
+          type: string
+          title: Full Name
+        phone:
+          type: string
+          title: Phone
+        email:
+          type: string
+          title: Email
+        telegram:
+          type: string
+          title: Telegram
+        preferred:
+          $ref: '#/components/schemas/PreferredChannel'
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        points_balance:
+          type: integer
+          title: Points Balance
+      type: object
+      required:
+      - id
+      - full_name
+      - phone
+      - email
+      - telegram
+      - preferred
+      - branch_id
+      - points_balance
+      title: ClientOut
+    CommissionOut:
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+          title: Employee Id
+        since:
+          type: string
+          format: date-time
+          title: Since
+        until:
+          type: string
+          format: date-time
+          title: Until
+        invoices:
+          type: integer
+          title: Invoices
+        commission_kopecks:
+          type: integer
+          title: Commission Kopecks
+      type: object
+      required:
+      - employee_id
+      - since
+      - until
+      - invoices
+      - commission_kopecks
+      title: CommissionOut
+    CompanyCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        inn:
+          type: string
+          pattern: ^\d{10}$|^\d{12}$
+          title: Inn
+      type: object
+      required:
+      - name
+      - inn
+      title: CompanyCreate
+    CompanyOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        inn:
+          type: string
+          title: Inn
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - inn
+      - created_at
+      title: CompanyOut
+    ConsumableUsageOut:
+      properties:
+        consumable_id:
+          type: string
+          format: uuid
+          title: Consumable Id
+        unit:
+          type: string
+          title: Unit
+        amount:
+          type: number
+          title: Amount
+        write_offs:
+          type: integer
+          title: Write Offs
+      type: object
+      required:
+      - consumable_id
+      - unit
+      - amount
+      - write_offs
+      title: ConsumableUsageOut
+    ConsumablesReportOut:
+      properties:
+        since:
+          type: string
+          format: date-time
+          title: Since
+        until:
+          type: string
+          format: date-time
+          title: Until
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        items:
+          items:
+            $ref: '#/components/schemas/ConsumableUsageOut'
+          type: array
+          title: Items
+      type: object
+      required:
+      - since
+      - until
+      - branch_id
+      - items
+      title: ConsumablesReportOut
+    EmployeeCreate:
+      properties:
+        full_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Full Name
+        role:
+          $ref: '#/components/schemas/EmployeeRole'
+        keycloak_subject:
+          type: string
+          maxLength: 64
+          title: Keycloak Subject
+          default: ''
+        shifts:
+          items:
+            $ref: '#/components/schemas/ShiftIn'
+          type: array
+          title: Shifts
+      type: object
+      required:
+      - full_name
+      - role
+      title: EmployeeCreate
+    EmployeeIdentityOut:
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+          title: Employee Id
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        role:
+          $ref: '#/components/schemas/EmployeeRole'
+      type: object
+      required:
+      - employee_id
+      - branch_id
+      - role
+      title: EmployeeIdentityOut
+      description: Кем является учётная запись. Служебный ответ для шлюза.
+    EmployeeOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        full_name:
+          type: string
+          title: Full Name
+        role:
+          $ref: '#/components/schemas/EmployeeRole'
+        is_active:
+          type: boolean
+          title: Is Active
+      type: object
+      required:
+      - id
+      - branch_id
+      - full_name
+      - role
+      - is_active
+      title: EmployeeOut
+    EmployeeRole:
+      type: string
+      enum:
+      - admin
+      - manager
+      - specialist
+      title: EmployeeRole
+    Error:
+      type: object
+      properties:
+        detail:
+          description: Причина отказа
+    FunnelOut:
+      properties:
+        since:
+          type: string
+          format: date-time
+          title: Since
+        until:
+          type: string
+          format: date-time
+          title: Until
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        created:
+          type: integer
+          title: Created
+        completed:
+          type: integer
+          title: Completed
+        cancelled:
+          type: integer
+          title: Cancelled
+        pending:
+          type: integer
+          title: Pending
+        conversion:
+          type: number
+          title: Conversion
+      type: object
+      required:
+      - since
+      - until
+      - branch_id
+      - created
+      - completed
+      - cancelled
+      - pending
+      - conversion
+      title: FunnelOut
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InvoiceOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        appointment_id:
+          type: string
+          format: uuid
+          title: Appointment Id
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        client_id:
+          type: string
+          format: uuid
+          title: Client Id
+        employee_id:
+          type: string
+          format: uuid
+          title: Employee Id
+        total_kopecks:
+          type: integer
+          title: Total Kopecks
+        commission_kopecks:
+          type: integer
+          title: Commission Kopecks
+        status:
+          $ref: '#/components/schemas/InvoiceStatus'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        paid_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Paid At
+      type: object
+      required:
+      - id
+      - appointment_id
+      - branch_id
+      - client_id
+      - employee_id
+      - total_kopecks
+      - commission_kopecks
+      - status
+      - created_at
+      - paid_at
+      title: InvoiceOut
+    InvoiceStatus:
+      type: string
+      enum:
+      - issued
+      - paid
+      - cancelled
+      title: InvoiceStatus
+    LoyaltyEntryOut:
+      properties:
+        invoice_id:
+          type: string
+          format: uuid
+          title: Invoice Id
+        paid_kopecks:
+          type: integer
+          title: Paid Kopecks
+        points:
+          type: integer
+          title: Points
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - invoice_id
+      - paid_kopecks
+      - points
+      - created_at
+      title: LoyaltyEntryOut
+    LoyaltyOut:
+      properties:
+        client_id:
+          type: string
+          format: uuid
+          title: Client Id
+        points_balance:
+          type: integer
+          title: Points Balance
+        entries:
+          items:
+            $ref: '#/components/schemas/LoyaltyEntryOut'
+          type: array
+          title: Entries
+      type: object
+      required:
+      - client_id
+      - points_balance
+      - entries
+      title: LoyaltyOut
+    NormIn:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        unit:
+          type: string
+          maxLength: 16
+          minLength: 1
+          title: Unit
+        amount:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Amount
+      type: object
+      required:
+      - name
+      - unit
+      - amount
+      title: NormIn
+    NormOut:
+      properties:
+        consumable_id:
+          type: string
+          format: uuid
+          title: Consumable Id
+        name:
+          type: string
+          title: Name
+        unit:
+          type: string
+          title: Unit
+        amount:
+          type: number
+          title: Amount
+      type: object
+      required:
+      - consumable_id
+      - name
+      - unit
+      - amount
+      title: NormOut
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          type: string
+          enum:
+          - sms
+          - email
+          - telegram
+          - dashboard
+        recipient:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum:
+          - sent
+          - failed
+        reason:
+          type: string
+        sent_at:
+          type: string
+          format: date-time
+    PreferredChannel:
+      type: string
+      enum:
+      - sms
+      - email
+      - telegram
+      title: PreferredChannel
+    PriceUpdate:
+      properties:
+        price_kopecks:
+          type: integer
+          minimum: 0.0
+          title: Price Kopecks
+      type: object
+      required:
+      - price_kopecks
+      title: PriceUpdate
+    ReplenishItem:
+      type: object
+      required:
+      - name
+      - unit
+      - amount
+      properties:
+        consumable_id:
+          type: string
+          format: uuid
+          description: Пусто для нового материала
+        name:
+          type: string
+        unit:
+          type: string
+          example: г
+        amount:
+          type: number
+          minimum: 0
+    ReplenishRequest:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplenishItem'
+    RevenueOut:
+      properties:
+        since:
+          type: string
+          format: date-time
+          title: Since
+        until:
+          type: string
+          format: date-time
+          title: Until
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        branch_name:
+          type: string
+          title: Branch Name
+        invoices:
+          type: integer
+          title: Invoices
+        total_kopecks:
+          type: integer
+          title: Total Kopecks
+        average_kopecks:
+          type: integer
+          title: Average Kopecks
+      type: object
+      required:
+      - since
+      - until
+      - branch_id
+      - branch_name
+      - invoices
+      - total_kopecks
+      - average_kopecks
+      title: RevenueOut
+    Route:
+      type: object
+      properties:
+        method:
+          type: string
+        path:
+          type: string
+        upstream:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+    ScheduleOut:
+      properties:
+        employee:
+          $ref: '#/components/schemas/EmployeeOut'
+        shifts:
+          items:
+            $ref: '#/components/schemas/ShiftOut'
+          type: array
+          title: Shifts
+      type: object
+      required:
+      - employee
+      - shifts
+      title: ScheduleOut
+    SendRequest:
+      type: object
+      required:
+      - client_id
+      - subject
+      - body
+      properties:
+        client_id:
+          type: string
+          format: uuid
+        subject:
+          type: string
+        body:
+          type: string
+    ServiceCreate:
+      properties:
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        duration_minutes:
+          type: integer
+          maximum: 480.0
+          exclusiveMinimum: 0.0
+          title: Duration Minutes
+        price_kopecks:
+          type: integer
+          minimum: 0.0
+          title: Price Kopecks
+        norms:
+          items:
+            $ref: '#/components/schemas/NormIn'
+          type: array
+          title: Norms
+      type: object
+      required:
+      - branch_id
+      - name
+      - duration_minutes
+      - price_kopecks
+      title: ServiceCreate
+    ServiceOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        branch_id:
+          type: string
+          format: uuid
+          title: Branch Id
+        name:
+          type: string
+          title: Name
+        duration_minutes:
+          type: integer
+          title: Duration Minutes
+        price_kopecks:
+          type: integer
+          title: Price Kopecks
+        is_active:
+          type: boolean
+          title: Is Active
+        norms:
+          items:
+            $ref: '#/components/schemas/NormOut'
+          type: array
+          title: Norms
+          default: []
+      type: object
+      required:
+      - id
+      - branch_id
+      - name
+      - duration_minutes
+      - price_kopecks
+      - is_active
+      title: ServiceOut
+    ShiftIn:
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+      type: object
+      required:
+      - starts_at
+      - ends_at
+      title: ShiftIn
+    ShiftOut:
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+      type: object
+      required:
+      - starts_at
+      - ends_at
+      title: ShiftOut
+    Slot:
+      type: object
+      properties:
+        employee_id:
+          type: string
+          format: uuid
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+    StockItem:
+      type: object
+      properties:
+        consumable_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        unit:
+          type: string
+        quantity:
+          type: number
+        threshold:
+          type: number
+        is_low:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+    Template:
+      type: object
+      properties:
+        key:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+    ThresholdRequest:
+      type: object
+      required:
+      - threshold
+      properties:
+        threshold:
+          type: number
+          minimum: 0
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+        subject:
+          type: string
+          format: uuid
+        username:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    TokenRequest:
+      type: object
+      required:
+      - username
+      - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WorkloadOut:
+      properties:
+        since:
+          type: string
+          format: date-time
+          title: Since
+        until:
+          type: string
+          format: date-time
+          title: Until
+        employee_id:
+          type: string
+          format: uuid
+          title: Employee Id
+        appointments:
+          type: integer
+          title: Appointments
+        completed:
+          type: integer
+          title: Completed
+        busy_minutes:
+          type: integer
+          title: Busy Minutes
+        commission_kopecks:
+          type: integer
+          title: Commission Kopecks
+      type: object
+      required:
+      - since
+      - until
+      - employee_id
+      - appointments
+      - completed
+      - busy_minutes
+      - commission_kopecks
+      title: WorkloadOut
+paths:
+  /appointments:
+    post:
+      summary: Создание записи
+      parameters: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+      tags:
+      - Записи
+      operationId: booking_post_appointments
+      security:
+      - bearerAuth: []
+      description: Создание записи. Администратор и управляющий.
+  /appointments/{appointmentID}:
+    get:
+      summary: Карточка записи
+      parameters:
+      - name: appointmentID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Записи
+      operationId: booking_get_appointments_appointmentID
+      security:
+      - bearerAuth: []
+      description: 'Карточка записи. Любая роль. Специалист работает только со своими объектами: принадлежность
+        проверяет сервис-владелец.'
+  /appointments/{appointmentID}/cancel:
+    post:
+      summary: Отмена записи
+      parameters:
+      - name: appointmentID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      tags:
+      - Записи
+      operationId: booking_post_appointments_appointmentID_cancel
+      security:
+      - bearerAuth: []
+      description: Отмена записи. Администратор и управляющий.
+  /appointments/{appointmentID}/complete:
+    post:
+      summary: Закрытие визита
+      parameters:
+      - name: appointmentID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Записи
+      operationId: booking_post_appointments_appointmentID_complete
+      security:
+      - bearerAuth: []
+      description: 'Закрытие визита. Любая роль. Специалист работает только со своими объектами: принадлежность
+        проверяет сервис-владелец.'
+  /auth/token:
+    post:
+      tags:
+      - Доступ
+      operationId: gateway_issue_token
+      summary: Получить токен по логину и паролю
+      description: Существует потому, что фронтенда нет. В боевой системе браузер идёт в Keycloak сам
+        по authorization code с PKCE, и пароль до шлюза не доходит вовсе.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+          description: Токен выдан
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Неверный логин или пароль
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Keycloak недоступен
+  /branches/{branchID}/slots:
+    get:
+      summary: Свободные слоты
+      parameters:
+      - name: branchID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: employee_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: service_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Slot'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Записи
+      operationId: booking_get_branches_branchID_slots
+      security:
+      - bearerAuth: []
+      description: Свободные слоты. Любая роль.
+  /branches/{branchID}/stock:
+    get:
+      summary: Остатки филиала
+      parameters:
+      - name: branchID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockItem'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Склад
+      operationId: inventory_get_branches_branchID_stock
+      security:
+      - bearerAuth: []
+      description: Остатки филиала. Администратор и управляющий.
+  /branches/{branchID}/stock/low:
+    get:
+      summary: Позиции ниже порога
+      parameters:
+      - name: branchID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockItem'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Склад
+      operationId: inventory_get_branches_branchID_stock_low
+      security:
+      - bearerAuth: []
+      description: Позиции ниже порога. Администратор и управляющий.
+  /branches/{branchID}/stock/replenish:
+    post:
+      summary: Пополнение склада
+      parameters:
+      - name: branchID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockItem'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplenishRequest'
+      tags:
+      - Склад
+      operationId: inventory_post_branches_branchID_stock_replenish
+      security:
+      - bearerAuth: []
+      description: Пополнение склада. Администратор и управляющий.
+  /branches/{branchID}/stock/{consumableID}/threshold:
+    put:
+      summary: Порог остатка
+      parameters:
+      - name: branchID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: consumableID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockItem'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThresholdRequest'
+      tags:
+      - Склад
+      operationId: inventory_put_branches_branchID_stock_consumableID_threshold
+      security:
+      - bearerAuth: []
+      description: Порог остатка. Только администратор.
+  /branches/{branch_id}/employees:
+    post:
+      tags:
+      - Организация
+      summary: Приём сотрудника
+      operationId: core_post_branches_branch_id_employees
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeCreate'
+      responses:
+        '201':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Приём сотрудника. Только администратор.
+    get:
+      tags:
+      - Организация
+      summary: Сотрудники филиала
+      operationId: core_get_branches_branch_id_employees
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: role
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/EmployeeRole'
+          - type: 'null'
+          title: Role
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployeeOut'
+                title: Response List Employees Branches  Branch Id  Employees Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Сотрудники филиала. Администратор и управляющий.
+  /branches/{branch_id}/funnel:
+    get:
+      tags:
+      - Аналитика
+      summary: Воронка записей
+      description: Воронка записей. Администратор и управляющий.
+      operationId: analytics_get_branches_branch_id_funnel
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: From
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: To
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunnelOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+  /branches/{branch_id}/invoices:
+    get:
+      tags:
+      - Расчёты
+      summary: Счета филиала
+      operationId: billing_get_branches_branch_id_invoices
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/InvoiceStatus'
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvoiceOut'
+                title: Response List Branch Invoices Branches  Branch Id  Invoices Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Счета филиала. Администратор и управляющий.
+  /branches/{branch_id}/revenue:
+    get:
+      tags:
+      - Аналитика
+      summary: Выручка филиала
+      description: Выручка филиала. Администратор и управляющий.
+      operationId: analytics_get_branches_branch_id_revenue
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: From
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: To
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+  /branches/{branch_id}/services:
+    get:
+      tags:
+      - Услуги
+      summary: Прайс филиала
+      operationId: catalog_get_branches_branch_id_services
+      parameters:
+      - name: branch_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: only_active
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Only Active
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceOut'
+                title: Response List Branch Services Branches  Branch Id  Services Get
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Прайс филиала. Любая роль.
+  /clients:
+    post:
+      tags:
+      - Клиенты
+      summary: Заведение клиента
+      operationId: client_post_clients
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientCreate'
+      responses:
+        '201':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Заведение клиента. Администратор и управляющий.
+    get:
+      tags:
+      - Клиенты
+      summary: Поиск клиента по телефону
+      description: Поиск клиента по телефону. Администратор и управляющий.
+      operationId: client_get_clients
+      parameters:
+      - name: phone
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 10
+          maxLength: 20
+          title: Phone
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+  /clients/{client_id}:
+    get:
+      tags:
+      - Клиенты
+      summary: Карточка клиента
+      description: Карточка клиента. Администратор и управляющий.
+      operationId: client_get_clients_client_id
+      parameters:
+      - name: client_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Client Id
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientCardOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+  /clients/{client_id}/loyalty:
+    get:
+      tags:
+      - Клиенты
+      summary: Лояльность клиента
+      operationId: client_get_clients_client_id_loyalty
+      parameters:
+      - name: client_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Client Id
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoyaltyOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Лояльность клиента. Администратор и управляющий.
+  /companies:
+    post:
+      tags:
+      - Организация
+      summary: Регистрация компании
+      operationId: core_post_companies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyCreate'
+        required: true
+      responses:
+        '201':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Регистрация компании. Только администратор.
+  /companies/{company_id}/branches:
+    post:
+      tags:
+      - Организация
+      summary: Открытие филиала
+      operationId: core_post_companies_company_id_branches
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Company Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchCreate'
+      responses:
+        '201':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Открытие филиала. Только администратор.
+  /employees/{employee_id}/commission:
+    get:
+      tags:
+      - Расчёты
+      summary: Комиссия сотрудника
+      operationId: billing_get_employees_employee_id_commission
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Employee Id
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: From
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: To
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: 'Комиссия сотрудника. Любая роль. Специалист работает только со своими объектами: принадлежность
+        проверяет сервис-владелец.'
+  /employees/{employee_id}/schedule:
+    get:
+      tags:
+      - Организация
+      summary: График сотрудника
+      operationId: core_get_employees_employee_id_schedule
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Employee Id
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: From
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: To
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: 'График сотрудника. Любая роль. Специалист работает только со своими объектами: принадлежность
+        проверяет сервис-владелец.'
+  /employees/{employee_id}/workload:
+    get:
+      tags:
+      - Аналитика
+      summary: Загрузка сотрудника
+      operationId: analytics_get_employees_employee_id_workload
+      parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Employee Id
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: From
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: To
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkloadOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: 'Загрузка сотрудника. Любая роль. Специалист работает только со своими объектами: принадлежность
+        проверяет сервис-владелец.'
+  /invoices/{invoice_id}:
+    get:
+      tags:
+      - Расчёты
+      summary: Счёт
+      operationId: billing_get_invoices_invoice_id
+      parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Invoice Id
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Счёт. Администратор и управляющий.
+  /invoices/{invoice_id}/pay:
+    post:
+      tags:
+      - Расчёты
+      summary: Оплата счёта
+      description: Оплата счёта. Только администратор.
+      operationId: billing_post_invoices_invoice_id_pay
+      parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Invoice Id
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+  /notifications:
+    post:
+      summary: Отправка уведомления
+      parameters: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendRequest'
+      tags:
+      - Уведомления
+      operationId: notification_post_notifications
+      security:
+      - bearerAuth: []
+      description: Отправка уведомления. Администратор и управляющий.
+  /notifications/{notificationID}:
+    get:
+      summary: Статус уведомления
+      parameters:
+      - name: notificationID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Уведомления
+      operationId: notification_get_notifications_notificationID
+      security:
+      - bearerAuth: []
+      description: Статус уведомления. Администратор и управляющий.
+  /reports/consumables:
+    get:
+      tags:
+      - Аналитика
+      summary: Расход материалов
+      operationId: analytics_get_reports_consumables
+      parameters:
+      - name: branch_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Branch Id
+      - name: from
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: From
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: To
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumablesReportOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Расход материалов. Администратор и управляющий.
+  /routes:
+    get:
+      tags:
+      - Доступ
+      operationId: gateway_list_routes
+      summary: Маршрутная таблица с требуемыми ролями
+      description: Права системы читаются целиком, а не собираются по сервисам.
+      security: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Route'
+          description: Таблица маршрутов
+  /services:
+    post:
+      tags:
+      - Услуги
+      summary: Добавление услуги
+      operationId: catalog_post_services
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreate'
+        required: true
+      responses:
+        '201':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Добавление услуги. Администратор и управляющий.
+  /services/{service_id}:
+    get:
+      tags:
+      - Услуги
+      summary: Карточка услуги
+      operationId: catalog_get_services_service_id
+      parameters:
+      - name: service_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Service Id
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Карточка услуги. Любая роль.
+  /services/{service_id}/price:
+    put:
+      tags:
+      - Услуги
+      summary: Изменение цены
+      operationId: catalog_put_services_service_id_price
+      parameters:
+      - name: service_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Service Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceUpdate'
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceOut'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      security:
+      - bearerAuth: []
+      description: Изменение цены. Только администратор.
+  /templates:
+    get:
+      summary: Шаблоны уведомлений
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+          description: Успешный ответ
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Токен отсутствует, просрочен или не проходит проверку
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Роли недостаточно либо объект принадлежит другому сотруднику
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Объект не найден
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Тело или параметры запроса не проходят проверку
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Сервис-исполнитель недоступен
+      tags:
+      - Уведомления
+      operationId: notification_get_templates
+      security:
+      - bearerAuth: []
+      description: Шаблоны уведомлений. Любая роль.
