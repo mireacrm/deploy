@@ -1,0 +1,415 @@
+# Система целиком (ПР6). Сервисы берутся готовыми образами из реестра
+# организации: исходников рядом больше нет, каждый сервис живёт и собирается
+# в своём репозитории, а сюда приезжает опубликованным.
+#
+#   docker compose up -d                      всё целиком, вход через :8000
+#   docker compose --profile observability up -d   плюс трассировка (ПР10)
+#   docker compose pull                       обновить образы до latest
+
+name: mirea-crm
+
+services:
+
+  # ---------------------------------------------------------------- Postgres
+  # Один инстанс, семь баз — по одной на сервис, плюс база Keycloak.
+  # Пользователи разные, в чужую базу сервис не попадёт даже случайно.
+  postgres:
+    image: postgres:16-alpine
+    container_name: mirea-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Скрипты из этого каталога выполняются только при первой инициализации.
+      # Меняли init-databases.sh — нужен docker compose down -v.
+      - ./deploy/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    healthcheck:
+      # Через -h проверка идёт по TCP, а не по unix-сокету. Разница
+      # принципиальна на первом запуске: пока выполняются скрипты из
+      # docker-entrypoint-initdb.d, образ держит временный сервер, доступный
+      # только через сокет. Проверка по сокету в этот момент зеленеет, все
+      # зависимые сервисы стартуют — и получают connection refused, потому
+      # что снаружи порт ещё закрыт. С холодным томом это гарантированное
+      # падение восьми контейнеров на docker compose up.
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1 -p 5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [mirea]
+
+  # ---------------------------------------------------------------- RabbitMQ
+  # Доменные события: всё, что меняет состояние и что нельзя потерять.
+  # Панель управления: http://localhost:15672 (guest/guest)
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: mirea-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+      - "127.0.0.1:15692:15692"   # метрики для Prometheus
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./deploy/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./deploy/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/10-defaults.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks: [mirea]
+
+  # -------------------------------------------------------------------- NATS
+  # Эфемерный real-time: живое табло слотов, алерты админу.
+  # JetStream намеренно выключен — гарантии доставки здесь не нужны,
+  # всё надёжное идёт через RabbitMQ.
+  nats:
+    image: nats:2.10-alpine
+    container_name: mirea-nats
+    command: ["--name", "mirea-nats", "--http_port", "8222"]
+    ports:
+      - "${NATS_PORT:-4222}:4222"
+      - "${NATS_UI_PORT:-8222}:8222"   # страница мониторинга
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  # ---------------------------------------------------------------- Keycloak
+  # Identity Provider для ПР9. Токены проверяет шлюз.
+  # Консоль: http://localhost:8080 (admin/admin)
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: mirea-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_PASSWORD:-admin}
+      # Без фиксированного hostname Keycloak подставляет в iss тот адрес, по
+      # которому к нему пришли: браузер получает localhost, шлюз — keycloak.
+      # Токены оказываются от разных издателей, и проверка iss их не сводит.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: keycloak_pass
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [mirea]
+
+  # ------------------------------------------------------- Наблюдаемость
+  # Трассировка: куда сервисы шлют спаны по OTLP.
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: mirea-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "127.0.0.1:4317:4317"   # OTLP gRPC — сюда шлют трейсы сервисы
+      - "127.0.0.1:4318:4318"   # OTLP HTTP
+    networks: [mirea]
+
+  # Метрики: собирает /metrics со всех сервисов и с экспортёра базы.
+  prometheus:
+    image: prom/prometheus:v3.13.3
+    container_name: mirea-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks: [mirea]
+
+  # Метрики самой базы: соединения, транзакции, размеры, блокировки.
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    container_name: mirea-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres?sslmode=disable
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "true"
+      PG_EXPORTER_EXCLUDE_DATABASES: template0,template1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [mirea]
+
+  # Дашборды. Источники данных и панели заводятся из deploy/grafana,
+  # руками в интерфейсе настраивать нечего.
+  grafana:
+    image: grafana/grafana:13.0.8
+    container_name: mirea-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    networks: [mirea]
+
+  # ---------------------------------------------------------------- Сервисы
+  # Единственный вход снаружи (ПР9). Порты остальных сервисов слушают только
+  # петлю: они открыты для отладки, но система доступна одним адресом.
+  gateway:
+    image: ghcr.io/mireacrm/gateway:latest
+    container_name: mirea-gateway
+    environment:
+      GATEWAY_HTTP_PORT: 8000
+      GATEWAY_OTLP_ENDPOINT: jaeger:4317
+      # iss в токене — адрес, по которому Keycloak видел браузер;
+      # ключи шлюз забирает изнутри сети. Адреса разные, и оба нужны.
+      GATEWAY_OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/mirea
+      GATEWAY_OIDC_INTERNAL_URL: http://keycloak:8080/realms/mirea
+      GATEWAY_CORE_URL: http://core-service:8001
+      GATEWAY_CATALOG_URL: http://catalog-service:8002
+      GATEWAY_BOOKING_URL: http://booking-service:8003
+      GATEWAY_INVENTORY_URL: http://inventory-service:8004
+      GATEWAY_CLIENT_URL: http://client-service:8005
+      GATEWAY_BILLING_URL: http://billing-service:8006
+      GATEWAY_NOTIFICATION_URL: http://notification-service:8007
+      GATEWAY_ANALYTICS_URL: http://analytics-service:8008
+    ports:
+      - "${GATEWAY_PORT:-8000}:8000"
+    depends_on:
+      - keycloak
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/readyz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [mirea]
+
+  core-service:
+    image: ghcr.io/mireacrm/core-service:latest
+    container_name: mirea-core
+    environment:
+      CORE_POSTGRES_DSN: postgresql+asyncpg://core_user:core_pass@postgres:5432/core_db
+      CORE_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      CORE_HTTP_PORT: 8001
+      CORE_OTLP_ENDPOINT: jaeger:4317
+      CORE_GRPC_PORT: 9001
+    ports:
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:9001:9001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8001/readyz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  catalog-service:
+    image: ghcr.io/mireacrm/catalog-service:latest
+    container_name: mirea-catalog
+    environment:
+      CATALOG_POSTGRES_DSN: postgresql+asyncpg://catalog_user:catalog_pass@postgres:5432/catalog_db
+      CATALOG_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      CATALOG_HTTP_PORT: 8002
+      CATALOG_OTLP_ENDPOINT: jaeger:4317
+      CATALOG_GRPC_PORT: 9002
+    ports:
+      - "127.0.0.1:8002:8002"
+      - "127.0.0.1:9002:9002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8002/readyz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  client-service:
+    image: ghcr.io/mireacrm/client-service:latest
+    container_name: mirea-client
+    environment:
+      CLIENT_POSTGRES_DSN: postgresql+asyncpg://client_user:client_pass@postgres:5432/client_db
+      CLIENT_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      CLIENT_BOOKING_ADDR: booking-service:9003
+      CLIENT_HTTP_PORT: 8005
+      CLIENT_OTLP_ENDPOINT: jaeger:4317
+      CLIENT_GRPC_PORT: 9005
+    ports:
+      - "127.0.0.1:8005:8005"
+      - "127.0.0.1:9005:9005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8005/readyz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  billing-service:
+    image: ghcr.io/mireacrm/billing-service:latest
+    container_name: mirea-billing
+    environment:
+      BILLING_POSTGRES_DSN: postgresql+asyncpg://billing_user:billing_pass@postgres:5432/billing_db
+      BILLING_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      BILLING_BOOKING_ADDR: booking-service:9003
+      BILLING_CLIENT_ADDR: client-service:9005
+      BILLING_HTTP_PORT: 8006
+      BILLING_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "127.0.0.1:8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8006/readyz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  booking-service:
+    image: ghcr.io/mireacrm/booking-service:latest
+    container_name: mirea-booking
+    environment:
+      BOOKING_POSTGRES_DSN: postgres://booking_user:booking_pass@postgres:5432/booking_db
+      BOOKING_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      BOOKING_NATS_URL: nats://nats:4222
+      BOOKING_CORE_ADDR: core-service:9001
+      BOOKING_CATALOG_ADDR: catalog-service:9002
+      BOOKING_HTTP_PORT: 8003
+      BOOKING_OTLP_ENDPOINT: jaeger:4317
+      BOOKING_GRPC_PORT: 9003
+    ports:
+      - "127.0.0.1:8003:8003"
+      - "127.0.0.1:9003:9003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      # В distroless нет ни curl, ни shell — проверяем самим бинарником.
+      test: ["CMD", "/booking", "-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  inventory-service:
+    image: ghcr.io/mireacrm/inventory-service:latest
+    container_name: mirea-inventory
+    environment:
+      INVENTORY_POSTGRES_DSN: postgres://inventory_user:inventory_pass@postgres:5432/inventory_db
+      INVENTORY_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      INVENTORY_NATS_URL: nats://nats:4222
+      INVENTORY_CATALOG_ADDR: catalog-service:9002
+      INVENTORY_HTTP_PORT: 8004
+      INVENTORY_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "127.0.0.1:8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/inventory", "-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  notification-service:
+    image: ghcr.io/mireacrm/notification-service:latest
+    container_name: mirea-notification
+    environment:
+      NOTIFICATION_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      NOTIFICATION_NATS_URL: nats://nats:4222
+      NOTIFICATION_CLIENT_ADDR: client-service:9005
+      NOTIFICATION_HTTP_PORT: 8007
+      NOTIFICATION_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "127.0.0.1:8007:8007"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/notification", "-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+  analytics-service:
+    image: ghcr.io/mireacrm/analytics-service:latest
+    container_name: mirea-analytics
+    environment:
+      ANALYTICS_POSTGRES_DSN: postgresql+asyncpg://analytics_user:analytics_pass@postgres:5432/analytics_db
+      ANALYTICS_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      ANALYTICS_CORE_ADDR: core-service:9001
+      ANALYTICS_HTTP_PORT: 8008
+      ANALYTICS_OTLP_ENDPOINT: jaeger:4317
+    ports:
+      - "127.0.0.1:8008:8008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8008/readyz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mirea]
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  mirea:
+    driver: bridge
