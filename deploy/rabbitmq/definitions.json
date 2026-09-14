@@ -90,17 +90,6 @@
       }
     },
     {
-      "name": "client-service.events",
-      "vhost": "/",
-      "durable": true,
-      "auto_delete": false,
-      "arguments": {
-        "x-dead-letter-exchange": "mirea.events.dlx",
-        "x-queue-type": "quorum",
-        "x-delivery-limit": 10
-      }
-    },
-    {
       "name": "mirea.events.dead",
       "vhost": "/",
       "durable": true,
