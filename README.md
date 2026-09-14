@@ -52,5 +52,4 @@ docker compose up -d
 
 ```
 docker compose pull                              обновить до latest
-docker compose --profile observability up -d     плюс трассировка
 ```
