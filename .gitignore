@@ -1,3 +1,6 @@
 .env
 __pycache__/
 *.py[cod]
+
+# Справочники, разложенные генератором активности
+tools/.activity-state.json
