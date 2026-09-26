@@ -329,7 +329,10 @@ class Load:
         if status != 200 or not slots:
             note("слотов нет")
             return
-        slot = random.choice(slots[:12])
+        # Выбор из широкого окна, а не из ближайших нескольких слотов: иначе
+        # потоки толкутся в одном и том же начале расписания и конфликт слота
+        # получается не от нагрузки, а от узкого выбора.
+        slot = random.choice(slots[:60])
 
         actor = "manager" if random.random() < 0.8 else "owner"
         status, appointment = self.clients[actor].call("POST", "/appointments", {
